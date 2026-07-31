@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #define CERVE_PORT 4040
 
@@ -65,13 +66,15 @@ int main(){
 
         
         pid_t pid = fork();
-        if (pid == -1) {
+        if (pid == -1) { // ERRO NO FORK
             perror("fork failed!");
             exit(1);
-        } else if (pid == 0) {
-            // CHILD PROCESS HANDLES REQUEST //
+        } else if (pid == 0) { // CHILD
             close(socketfd);
-            sleep(5);
+
+            // simulando processo pesado
+            // sleep(5);
+
             // lendo o que esta escrito no request
             char buffer[256] = {0};
             if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
@@ -85,14 +88,13 @@ int main(){
                 perror("write failed!");
                 exit(1);
             };
-            
-            // fechando o cliente
+
             close(clientfd);
             exit(0);
         } else {
             // PARENT PROCESS GETS NEXT //
-            // fechando o cliente
             close(clientfd);
+            waitpid(-1, NULL, WNOHANG);
         }
 
     };
