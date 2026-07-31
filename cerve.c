@@ -56,7 +56,9 @@ int main(){
             perror("accept failed!");
             exit(1);
         }
-    
+        
+        sleep(1);
+
         // lendo o que esta escrito no request
         char buffer[256] = {0};
         if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
