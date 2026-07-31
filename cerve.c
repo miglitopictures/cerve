@@ -55,6 +55,13 @@ int main(){
         exit(1);
     };
 
+    #define MAX_METHOD 128
+    #define MAX_PATH 256
+    #define MAX_VERSION 128
+
+    char server_root[MAX_PATH];
+    realpath(".", server_root);
+
 
     while(1){
         // aceitando o pedido, e salvando o id request
@@ -75,22 +82,155 @@ int main(){
             // simulando processo pesado
             // sleep(5);
 
+            #define BUFFER_SIZE 256
             // lendo o que esta escrito no request
-            char buffer[256] = {0};
+            char buffer[BUFFER_SIZE] = {0};
             if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
                 perror("read failed!");
                 exit(1);
             };
         
-            // enviando uma resposta!
-            char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 14\r\n\r\nHola que tal!\n";
-            if(write(clientfd, response, strlen(response)) == -1){
-                perror("write failed!");
-                exit(1);
-            };
+        
+            // parsing http header
+            //GET / HTTP/1.1\r\n
+            // getting method, path and version
+            char currentChar;
 
+            
+            char method[MAX_METHOD], path[MAX_PATH], version[MAX_VERSION];
+
+            int cursor = 0;
+
+            // getting method
+            int i = 0;
+            while (1) {
+                if (i == MAX_METHOD || cursor == BUFFER_SIZE) break;
+                currentChar = buffer[cursor];
+                if (currentChar == ' ') break;
+                method[i] = currentChar;
+                cursor++;
+                i++;
+            }
+            method[i] = '\0';
+
+            // skip whitespace
+            while (cursor < BUFFER_SIZE && buffer[cursor] == ' ') cursor++;
+
+            // getting path
+            i = 0;
+            while (1) {
+                if (i == MAX_PATH || cursor == BUFFER_SIZE) break;
+                currentChar = buffer[cursor];
+                if (currentChar == ' ') break;
+                path[i] = currentChar;
+                cursor++;
+                i++;
+            }
+            path[i] = '\0';
+
+            // skip whitespace
+            while (cursor < BUFFER_SIZE && buffer[cursor] == ' ') cursor++;
+
+            // getting path
+            i = 0;
+            while (1) {
+                if (i == MAX_VERSION || cursor == BUFFER_SIZE) break;
+                currentChar = buffer[cursor];
+                if (currentChar == '\r') break;
+                version[i] = currentChar;
+                cursor++;
+                i++;
+            }
+            version[i] = '\0';
+            printf("\nmethod: '%s';\npath: '%s';\nversion: '%s';\n\n", method, path, version);
+
+
+            char full_path[MAX_PATH];
+            if (strcmp(path, "/") == 0){
+                strcpy(full_path, "index.html");
+            } else {
+                strcpy(full_path, path + 1);
+            }
+
+
+            char resolved_path[MAX_PATH];
+            if (realpath(full_path, resolved_path) == NULL) {
+                printf("failed to resolve desired path!\n");
+                char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+                if(write(clientfd, response, strlen(response)) == -1){
+                    perror("write failed!");
+                    exit(1);
+                };
+                close(clientfd);
+                exit(0);
+            }
+
+            size_t server_root_size = strlen(server_root);
+            if (strncmp(resolved_path, server_root, server_root_size) != 0) {
+                printf("error: path traversing!!!\n");
+                char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+                if(write(clientfd, response, strlen(response)) == -1){
+                    perror("write failed!");
+                    exit(1);
+                };
+                close(clientfd);
+                exit(0);
+            }
+
+            if (!(resolved_path[server_root_size] == '/' || resolved_path[server_root_size] == '\0')) {
+                printf("error: path traversing!!!\n");
+                char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+                if(write(clientfd, response, strlen(response)) == -1){
+                    perror("write failed!");
+                    exit(1);
+                };
+                close(clientfd);
+                exit(0);
+            }
+            
+            printf("directing to %s:\n\n", full_path);
+
+            FILE *file = fopen(full_path, "rb");
+            if (file == NULL) {
+                perror("failed to open file!");
+                // enviando uma resposta!
+                char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+                if(write(clientfd, response, strlen(response)) == -1){
+                    perror("write failed!");
+                    exit(1);
+                };
+                
+            } else {
+                printf("File opened successfully!\n");
+
+                fseek(file, 0, SEEK_END); // go to end
+                long fileSize = ftell(file); // get end pos
+                fseek(file, 0, SEEK_SET);
+    
+                char *content = malloc(fileSize);
+    
+                fread(content, fileSize, 1, file);
+                fclose(file);
+
+                // make and send header
+                char header[256];
+                snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %ld\r\n\r\n", fileSize);
+                if(write(clientfd, header, strlen(header)) == -1){
+                    perror("header write failed!");
+                    exit(1);
+                };
+                // send content
+                if(write(clientfd, content, fileSize) == -1){
+                    perror("content write failed!");
+                    free(content);
+                    exit(1);
+                };
+                free(content);
+
+            }
             close(clientfd);
             exit(0);
+
         } else {
             // PARENT PROCESS GETS NEXT //
             close(clientfd);
