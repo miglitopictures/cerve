@@ -5,6 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define CERVE_PORT 4040
+
 // This is me, Miguel Duarte, trying to understand servers a little bit.
 // Resources: Making Minimalist Web Server in C on Linux | Nir Lichtman [https://www.youtube.com/watch?v=2HrYIl6GpYg]
 
@@ -35,7 +37,7 @@ int main(){
     struct sockaddr_in addr;
     addr.sin_addr.s_addr = 0;
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(4040);
+    addr.sin_port = htons(CERVE_PORT);
 
     // conectando o socket ao endereço
     if (bind(socketfd, (const struct sockaddr *) &addr, sizeof(addr)) < 0){
@@ -43,11 +45,15 @@ int main(){
         exit(1);
     };
 
+
+    
+    printf("Cerve is listening on port %d\n", CERVE_PORT);
     // preparando o socket para receber pedidos.
     if (listen(socketfd, 10) < 0){
         perror("listening failed!");
         exit(1);
     };
+
 
     while(1){
         // aceitando o pedido, e salvando o id request
@@ -56,29 +62,39 @@ int main(){
             perror("accept failed!");
             exit(1);
         }
-        
-        sleep(1);
 
-        // lendo o que esta escrito no request
-        char buffer[256] = {0};
-        if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
-            perror("read failed!");
-            exit(1);
-        };
-    
-        // enviando uma resposta!
-        char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHola que tal!";
-        if(write(clientfd, response, strlen(response)) == -1){
-            perror("write failed!");
-            exit(1);
-        };
         
-        // fechando o cliente
-        close(clientfd);
+        pid_t pid = fork();
+        if (pid == -1) {
+            perror("fork failed!");
+            exit(1);
+        } else if (pid == 0) {
+            // CHILD PROCESS HANDLES REQUEST //
+            close(socketfd);
+            sleep(5);
+            // lendo o que esta escrito no request
+            char buffer[256] = {0};
+            if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
+                perror("read failed!");
+                exit(1);
+            };
+        
+            // enviando uma resposta!
+            char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 14\r\n\r\nHola que tal!\n";
+            if(write(clientfd, response, strlen(response)) == -1){
+                perror("write failed!");
+                exit(1);
+            };
+            
+            // fechando o cliente
+            close(clientfd);
+            exit(0);
+        } else {
+            // PARENT PROCESS GETS NEXT //
+            // fechando o cliente
+            close(clientfd);
+        }
+
     };
-
-    // fechando o servidor
-    close(socketfd);
-
     return 0;
 }
