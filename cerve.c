@@ -49,28 +49,33 @@ int main(){
         exit(1);
     };
 
-    // aceitando o pedido, e salvando o id request
-    int clientfd = accept(socketfd, 0, 0);
-    if (clientfd == -1){
-        perror("accept failed!");
-        exit(1);
-    }
-
-    // lendo o que esta escrito no request
-    char buffer[256] = {0};
-    if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
-        perror("read failed!");
-        exit(1);
-    };
-
-    // enviando uma resposta!
-    char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHola que tal!";
-    if(write(clientfd, response, strlen(response)) == -1){
-        perror("write failed!");
-        exit(1);
-    };
+    while(1){
+        // aceitando o pedido, e salvando o id request
+        int clientfd = accept(socketfd, 0, 0);
+        if (clientfd == -1){
+            perror("accept failed!");
+            exit(1);
+        }
     
-    close(clientfd);
+        // lendo o que esta escrito no request
+        char buffer[256] = {0};
+        if (read(clientfd, buffer, sizeof(buffer) - 1) == -1){
+            perror("read failed!");
+            exit(1);
+        };
+    
+        // enviando uma resposta!
+        char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHola que tal!";
+        if(write(clientfd, response, strlen(response)) == -1){
+            perror("write failed!");
+            exit(1);
+        };
+        
+        // fechando o cliente
+        close(clientfd);
+    };
+
+    // fechando o servidor
     close(socketfd);
 
     return 0;
