@@ -1,3 +1,13 @@
+/*
+=== Cerve - um servidor HTTP mínimo escrito em C! ===
+Não adequado para produção real, mas pessoalmente útil para desenvolvimento.
+
+Main infos: https://github.com/miglitopictures/cerve
+
+Inspirado por Making Minimalist Web Server in C on Linux - Nir Lichtman: https://www.youtube.com/watch?v=2HrYIl6GpYg
+Programado por Miglito (Miguel Duarte).
+*/
+
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -7,6 +17,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+// escreve o tipo MIME correto em mime_type, a partir da extesão do arquivo (file_path). Implementa mime types para css, js, jpg, png, html.
 void buildMIME(char *mime_buffer, char *file_path) {
     char *extension = strrchr(file_path, '.');
     if (extension == NULL){
@@ -28,6 +39,7 @@ void buildMIME(char *mime_buffer, char *file_path) {
     }
 }
 
+// usa write() para escrever o conteudo de file_path em client_fd
 int sendFile(int client_fd, char *file_path) {
     printf("directing to %s:\n\n", file_path);
     FILE *file = fopen(file_path, "rb");
@@ -43,32 +55,32 @@ int sendFile(int client_fd, char *file_path) {
     } else {
         printf("File opened successfully!\n");
         
-        long fileSize;
-        { // GET EXACT FILE SIZE
+        long file_size;
+        { // pegar tamamnho so arquivo
             fseek(file, 0, SEEK_END);
-            fileSize = ftell(file);
+            file_size = ftell(file);
             fseek(file, 0, SEEK_SET);
         }
 
         char *content;
-        { // EXTRACT CONTENT FROM FILE AND CLOSE IT
-            content = malloc(fileSize);
-            fread(content, fileSize, 1, file);
+        { // extrair conteudo e fechar o arquivo
+            content = malloc(file_size);
+            fread(content, file_size, 1, file);
             fclose(file);
         }
 
         char mime[32];
         buildMIME(mime, file_path);
 
-        // make and send header
+        // criar/formatar e enviar header
         char header[256];
-        snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: no-cache\r\nContent-Length: %ld\r\n\r\n", mime, fileSize);
+        snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: no-cache\r\nContent-Length: %ld\r\n\r\n", mime, file_size);
         if(write(client_fd, header, strlen(header)) == -1){
             perror("header write failed!");
             return 1;
         };
-        // send content
-        if(write(client_fd, content, fileSize) == -1){
+        // enviar content
+        if(write(client_fd, content, file_size) == -1){
             perror("content write failed!");
             free(content);
             return 1;
@@ -78,6 +90,7 @@ int sendFile(int client_fd, char *file_path) {
     }
 }
 
+// envia resposta padrao 404 - page not found para cliente (client_fd). redireciona para pagina customizada (not_found_page) dependendo das configurações (redirect_on_404).
 int send404(int client_fd, int redirect_on_404, char *not_found_page){
     if (redirect_on_404){
         return sendFile(client_fd, not_found_page);
@@ -156,9 +169,6 @@ int main(int argc, char *argv[]){
 
     printf("\n");
 
-
-
-
     // criando socket ipv4
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0){
@@ -181,8 +191,6 @@ int main(int argc, char *argv[]){
         perror("binding failed!");
         exit(1);
     };
-
-
     
     printf("Cerve is listening on port http://localhost:%d\n", port);
     // preparando o socket para receber pedidos.
@@ -190,11 +198,14 @@ int main(int argc, char *argv[]){
         perror("listening failed!");
         exit(1);
     };
-
     
-    // recurso: 
+    // pegando o endereco reaiz do servidor
     char server_root[PATH_MAX];
     realpath(".", server_root);
+    // PATH_MAX é tamanho maximo (em bytes) do retorno de realpath(). presumidamente 4096 bytes no linux.
+    // referencias:
+    // - https://man7.org/linux/man-pages/man3/realpath.3.html
+    // - https://man7.org/linux/man-pages/man0/limits.h.0p.html
 
 
     while(1){
@@ -277,7 +288,7 @@ int main(int argc, char *argv[]){
             }
 
 
-            // get full path
+            // pegando endereco desejado (index.html, se request for pra raiz)
             char full_path[MAX_PATH];
             if (strcmp(path, "/") == 0){
                 strcpy(full_path, "index.html");
@@ -296,7 +307,7 @@ int main(int argc, char *argv[]){
                 exit(0);
             }
 
-            // test path traversal
+            // testando path traversal
             size_t server_root_size = strlen(server_root);
             if (strncmp(resolved_path, server_root, server_root_size) != 0) {
                 printf("error: path traversing!!!\n");
@@ -321,7 +332,7 @@ int main(int argc, char *argv[]){
             exit(0);
 
         } else {
-            // PARENT PROCESS GETS NEXT //index.html
+            // PARENT PROCESS GETS NEXT //
             close(client_fd);
             waitpid(-1, NULL, WNOHANG);
         }
