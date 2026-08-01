@@ -287,6 +287,11 @@ int main(int argc, char *argv[]){
                 printf("\nmethod: '%s';\npath: '%s';\nversion: '%s';\n\n", method, path, version);
             }
 
+            // desconsiderando a partir do search query do endereco (caso exista)
+            char *query_start = strchr(path, '?');
+            if (query_start != NULL) {
+                *query_start = '\0';
+            }
 
             // pegando endereco desejado (index.html, se request for pra raiz)
             char full_path[MAX_PATH];
