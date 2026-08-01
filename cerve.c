@@ -192,7 +192,7 @@ int main(int argc, char *argv[]){
         exit(1);
     };
     
-    printf("Cerve is listening on port http://localhost:%d\n", port);
+    printf("Cerve is live!\nGo to: http://localhost:%d\n", port);
     // preparando o socket para receber pedidos.
     if (listen(socket_fd, 10) < 0){
         perror("listening failed!");
