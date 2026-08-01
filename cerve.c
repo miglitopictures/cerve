@@ -150,6 +150,7 @@ int main(){
             }
 
 
+            // get full path
             char full_path[MAX_PATH];
             if (strcmp(path, "/") == 0){
                 strcpy(full_path, "index.html");
@@ -157,7 +158,7 @@ int main(){
                 strcpy(full_path, path + 1);
             }
 
-
+            // resolve full path (absolute)
             char resolved_path[MAX_PATH];
             if (realpath(full_path, resolved_path) == NULL) {
                 printf("failed to resolve desired path!\n");
@@ -168,6 +169,7 @@ int main(){
                 exit(0);
             }
 
+            // test path traversal
             size_t server_root_size = strlen(server_root);
             if (strncmp(resolved_path, server_root, server_root_size) != 0) {
                 printf("error: path traversing!!!\n");
@@ -177,7 +179,6 @@ int main(){
                 close(client_fd);
                 exit(0);
             }
-
             if (!(resolved_path[server_root_size] == '/' || resolved_path[server_root_size] == '\0')) {
                 printf("error: path traversing!!!\n");
                 if(send404(client_fd) != 0){
@@ -200,30 +201,37 @@ int main(){
                 
             } else {
                 printf("File opened successfully!\n");
+                
+                long fileSize;
+                { // GET EXACT FILE SIZE
+                    fseek(file, 0, SEEK_END);
+                    fileSize = ftell(file);
+                    fseek(file, 0, SEEK_SET);
+                }
 
-                fseek(file, 0, SEEK_END); // go to end
-                long fileSize = ftell(file); // get end pos
-                fseek(file, 0, SEEK_SET);
-    
-                char *content = malloc(fileSize);
-    
-                fread(content, fileSize, 1, file);
-                fclose(file);
+                char *content;
+                { // EXTRACT CONTENT FROM FILE AND CLOSE IT
+                    content = malloc(fileSize);
+                    fread(content, fileSize, 1, file);
+                    fclose(file);
+                }
 
                 char *extension = strrchr(full_path, '.') + 1;
                 char mime[32];
-                if (strcmp(extension,"html") == 0){
-                    strcpy(mime, "text/html");
-                } else if (strcmp(extension,"css") == 0){
-                    strcpy(mime, "text/css");
-                } else if (strcmp(extension,"js") == 0){
-                    strcpy(mime, "application/javascript");
-                } else if (strcmp(extension,"png") == 0){
-                    strcpy(mime, "image/png");
-                } else if (strcmp(extension,"jpg") == 0){
-                    strcpy(mime, "image/jpg");
-                } else {
-                    strcpy(mime, "application/octet-stream");
+                { // BUILD MIME
+                    if (strcmp(extension,"html") == 0){
+                        strcpy(mime, "text/html");
+                    } else if (strcmp(extension,"css") == 0){
+                        strcpy(mime, "text/css");
+                    } else if (strcmp(extension,"js") == 0){
+                        strcpy(mime, "application/javascript");
+                    } else if (strcmp(extension,"png") == 0){
+                        strcpy(mime, "image/png");
+                    } else if (strcmp(extension,"jpg") == 0){
+                        strcpy(mime, "image/jpg");
+                    } else {
+                        strcpy(mime, "application/octet-stream");
+                    }
                 }
 
                 // make and send header
