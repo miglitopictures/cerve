@@ -21,6 +21,20 @@ Para o site que estou desenvolvendo agora, usei o Sonnet 5 para programar um ser
 - Resposta 404 para arquivos inexistentes, com página de fallback customizável
 - Configuração via flags de linha de comando (`getopt`)
 
+## Estrutura do repositório
+ 
+```
+.
+├── src/
+│   └── cerve.c         # código-fonte do servidor
+├── testing/            # site de exemplo usado para testar o Cerve localmente
+│   ├── index.html
+│   ├── 404.html
+│   └── error.html
+├── origin.md            # o script Python original que inspirou o projeto
+└── readme.md
+```
+
 ## Como testar
 
 ```bash
