@@ -6,18 +6,158 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#define CERVE_PORT 4040
-
-int send404(int client_fd){
-    char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
-    if(write(client_fd, response, strlen(response)) == -1){
-        perror("404 write failed!");
-        return 1;
-    };
-    return 0;
+void buildMIME(char *mime_buffer, char *file_path) {
+    char *extension = strrchr(file_path, '.');
+    if (extension == NULL){
+        strcpy(mime_buffer, "application/octet-stream");
+    } else { 
+        if (strcmp(extension,".html") == 0){
+            strcpy(mime_buffer, "text/html");
+        } else if (strcmp(extension,".css") == 0){
+            strcpy(mime_buffer, "text/css");
+        } else if (strcmp(extension,".js") == 0){
+            strcpy(mime_buffer, "application/javascript");
+        } else if (strcmp(extension,".png") == 0){
+            strcpy(mime_buffer, "image/png");
+        } else if (strcmp(extension,".jpg") == 0){
+            strcpy(mime_buffer, "image/jpg");
+        } else {
+            strcpy(mime_buffer, "application/octet-stream");
+        }
+    }
 }
 
-int main(){
+int sendFile(int client_fd, char *file_path) {
+    printf("directing to %s:\n\n", file_path);
+    FILE *file = fopen(file_path, "rb");
+
+    if (file == NULL) {
+        perror("failed to open file!");
+        char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+        if(write(client_fd, response, strlen(response)) != 0){
+            perror("send file 404 write failed!");
+            return 1;
+        };
+        return 1;
+    } else {
+        printf("File opened successfully!\n");
+        
+        long fileSize;
+        { // GET EXACT FILE SIZE
+            fseek(file, 0, SEEK_END);
+            fileSize = ftell(file);
+            fseek(file, 0, SEEK_SET);
+        }
+
+        char *content;
+        { // EXTRACT CONTENT FROM FILE AND CLOSE IT
+            content = malloc(fileSize);
+            fread(content, fileSize, 1, file);
+            fclose(file);
+        }
+
+        char mime[32];
+        buildMIME(mime, file_path);
+
+        // make and send header
+        char header[256];
+        snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: no-cache\r\nContent-Length: %ld\r\n\r\n", mime, fileSize);
+        if(write(client_fd, header, strlen(header)) == -1){
+            perror("header write failed!");
+            return 1;
+        };
+        // send content
+        if(write(client_fd, content, fileSize) == -1){
+            perror("content write failed!");
+            free(content);
+            return 1;
+        };
+        free(content);
+        return 0;
+    }
+}
+
+int send404(int client_fd, int redirect_on_404, char *not_found_page){
+    if (redirect_on_404){
+        return sendFile(client_fd, not_found_page);
+    } else {
+        char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
+        if(write(client_fd, response, strlen(response)) == -1){
+            perror("404 write failed!");
+            return 1;
+        };
+        return 0;
+    }
+}
+
+int main(int argc, char *argv[]){
+
+    #define MAX_METHOD 128
+    #define MAX_PATH 256
+    #define MAX_VERSION 128
+
+    // porta default
+    int port = 4040;
+
+    // 404 behaviour defaults
+    int redirect_on_404 = 0;
+    char not_found_page[MAX_PATH] = "404.html";
+
+    /* INTEPRETANDO FLAGS [getopt()] */ 
+
+    // -p [port]| especifica a porta para conectar o servidor
+    // -f [falback_404_page]| 404 fallback: redireciona para fallback_404_page especificada ou para "404.html" como padrão.
+
+    /*
+        getopt(argc, argv, optstring)
+        optstring é um string com suas flags, caso a flag precise um argumento (ex.: -f hello.txt) usamos o ":" após a letra na string optstring.
+        caso o argumento seja opcional, usamos "::"
+
+        retorna, em caso de sucesso, a opção da vez. quando todas as opcoes são lidas, retorna -1.
+        se encontrar uma opção não for estabelecida em optstring, retorna "?" e coloca a opcao desconhecida em "optopt".
+
+        quando a opcao tem um argumento, o argumento pode ser acessado em (char *optarg);
+        se o argumento não existe (flags booleanas ou de argumento opcional), optarg é NULL.
+    */
+
+    // recursos de estudo para getopt():
+    // - https://www.geeksforgeeks.org/c/getopt-function-in-c-to-parse-command-line-arguments/
+    // - https://man7.org/linux/man-pages/man3/getopt.3.html
+
+
+    int option;
+    while((option = getopt(argc, argv,"p:f::")) != -1){
+        switch (option)
+        {
+        case 'p': {
+            int converted_optarg = atoi(optarg);
+            if (converted_optarg != 0){
+                port = converted_optarg;
+            } else {
+                printf("CONFIG_WARNING: [-p] port-specification | Invalid port selected, using default (:%d).\n", port);
+            }
+            break;
+        }
+        case 'f': {
+            redirect_on_404 = 1;
+            if (optarg != NULL) strcpy(not_found_page, optarg);
+            printf("CONFIG: [-f] fallback-on-404 | redirecting to '%s' on page not found (404).\n", not_found_page);
+            break;
+        }
+        case '?': {
+            printf("CONFIG_WARNING: Unknown config [-%c]\n", optopt);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    printf("\n");
+
+
+
+
     // criando socket ipv4
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0){
@@ -33,7 +173,7 @@ int main(){
     struct sockaddr_in addr;
     addr.sin_addr.s_addr = 0;
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(CERVE_PORT);
+    addr.sin_port = htons(port);
 
     // conectando o socket ao endereço
     if (bind(socket_fd, (const struct sockaddr *) &addr, sizeof(addr)) < 0){
@@ -43,16 +183,14 @@ int main(){
 
 
     
-    printf("Cerve is listening on port %d\n", CERVE_PORT);
+    printf("Cerve is listening on port http://localhost:%d\n", port);
     // preparando o socket para receber pedidos.
     if (listen(socket_fd, 10) < 0){
         perror("listening failed!");
         exit(1);
     };
 
-    #define MAX_METHOD 128
-    #define MAX_PATH 256
-    #define MAX_VERSION 128
+    
 
     char server_root[MAX_PATH];
     realpath(".", server_root);
@@ -74,7 +212,7 @@ int main(){
         } else if (pid == 0) { // CHILD
             close(socket_fd);
 
-            // simulando processo pesado
+            // simulando processo pesado // DEBUG
             // sleep(5);
 
             #define BUFFER_SIZE 256
@@ -86,14 +224,14 @@ int main(){
             };
         
         
-            // parsing http header
+            // interpretando http header
             char method[MAX_METHOD], path[MAX_PATH], version[MAX_VERSION];
             { // PARSE HEADER
                 
                 char current_char;
                 int cursor = 0;
     
-                // getting method
+                // pegando method
                 int i = 0;
                 while (1) {
                     if (i == MAX_METHOD || cursor == BUFFER_SIZE) break;
@@ -105,10 +243,10 @@ int main(){
                 }
                 method[i] = '\0';
     
-                // skip whitespace
+                // pulando whitespace
                 while (cursor < BUFFER_SIZE && buffer[cursor] == ' ') cursor++;
     
-                // getting path
+                // pegando path
                 i = 0;
                 while (1) {
                     if (i == MAX_PATH || cursor == BUFFER_SIZE) break;
@@ -120,10 +258,10 @@ int main(){
                 }
                 path[i] = '\0';
     
-                // skip whitespace
+                // pulando whitespace
                 while (cursor < BUFFER_SIZE && buffer[cursor] == ' ') cursor++;
     
-                // getting path
+                // pegando path
                 i = 0;
                 while (1) {
                     if (i == MAX_VERSION || cursor == BUFFER_SIZE) break;
@@ -150,7 +288,7 @@ int main(){
             char resolved_path[MAX_PATH];
             if (realpath(full_path, resolved_path) == NULL) {
                 printf("failed to resolve desired path!\n");
-                if(send404(client_fd) != 0){
+                if(send404(client_fd, redirect_on_404, not_found_page) != 0){
                     exit(1);
                 };
                 close(client_fd);
@@ -161,7 +299,7 @@ int main(){
             size_t server_root_size = strlen(server_root);
             if (strncmp(resolved_path, server_root, server_root_size) != 0) {
                 printf("error: path traversing!!!\n");
-                if(send404(client_fd) != 0){
+                if(send404(client_fd, redirect_on_404, not_found_page) != 0){
                     exit(1);
                 };
                 close(client_fd);
@@ -169,80 +307,15 @@ int main(){
             }
             if (!(resolved_path[server_root_size] == '/' || resolved_path[server_root_size] == '\0')) {
                 printf("error: path traversing!!!\n");
-                if(send404(client_fd) != 0){
+                if(send404(client_fd, redirect_on_404, not_found_page) != 0){
                     exit(1);
                 };
                 close(client_fd);
                 exit(0);
             }
             
-            printf("directing to %s:\n\n", full_path);
 
-            FILE *file = fopen(full_path, "rb");
-            if (file == NULL) {
-                perror("failed to open file!");
-                if(send404(client_fd) != 0){
-                    exit(1);
-                };
-                close(client_fd);
-                exit(0);
-                
-            } else {
-                printf("File opened successfully!\n");
-                
-                long fileSize;
-                { // GET EXACT FILE SIZE
-                    fseek(file, 0, SEEK_END);
-                    fileSize = ftell(file);
-                    fseek(file, 0, SEEK_SET);
-                }
-
-                char *content;
-                { // EXTRACT CONTENT FROM FILE AND CLOSE IT
-                    content = malloc(fileSize);
-                    fread(content, fileSize, 1, file);
-                    fclose(file);
-                }
-
-                char mime[32];
-                // BUILD MIME
-                {
-                    char *extension = strrchr(full_path, '.');
-                    if (extension == NULL){
-                        strcpy(mime, "application/octet-stream");
-                    } else { 
-                        if (strcmp(extension,".html") == 0){
-                            strcpy(mime, "text/html");
-                        } else if (strcmp(extension,".css") == 0){
-                            strcpy(mime, "text/css");
-                        } else if (strcmp(extension,".js") == 0){
-                            strcpy(mime, "application/javascript");
-                        } else if (strcmp(extension,".png") == 0){
-                            strcpy(mime, "image/png");
-                        } else if (strcmp(extension,".jpg") == 0){
-                            strcpy(mime, "image/jpg");
-                        } else {
-                            strcpy(mime, "application/octet-stream");
-                        }
-                    }
-                }
-
-                // make and send header
-                char header[256];
-                snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n", mime, fileSize);
-                if(write(client_fd, header, strlen(header)) == -1){
-                    perror("header write failed!");
-                    exit(1);
-                };
-                // send content
-                if(write(client_fd, content, fileSize) == -1){
-                    perror("content write failed!");
-                    free(content);
-                    exit(1);
-                };
-                free(content);
-
-            }
+            sendFile(client_fd, full_path);
             close(client_fd);
             exit(0);
 
