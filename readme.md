@@ -8,7 +8,7 @@ No último ano, desenvolvi alguns sites de portfólio (SPA) para colegas designe
 
 Para hospedar esses sites, sempre utilizo o GitHub Pages, pela gratuidade (para projetos pequenos) e pela facilidade no deploy. Aprendi, eventualmente, que o servidor do GH redireciona automaticamente para uma `404.html` quando uma rota não existe. Simular esse comportamento localmente no VS Code com o [Live Server](https://ritwickdey.github.io/vscode-live-server/) sempre foi um problema e deu muita dor de cabeça na hora de administrar as rotas dinâmicas.
 
-Para o site que estou desenvolvendo agora, usei o Sonnet 5 para programar um servidor com esse comportamento, e ele resolveu o problema na hora, com [pouquíssimas linhas de Python](inspiracao.md)... Fiquei com inveja e com vontade de entender como servidores HTTP funcionavam. O Cerve é basicamente uma recriação manual desse script Python, escrito em C, com algumas funcionalidades que servem para o meu workflow pessoal!
+Para o site que estou desenvolvendo agora, usei o Sonnet 5 para programar um servidor com esse comportamento, e ele resolveu o problema na hora, com [pouquíssimas linhas de Python](origin.md)... Fiquei com inveja e com vontade de entender como servidores HTTP funcionavam. O Cerve é basicamente uma recriação manual desse script Python, escrito em C, com algumas funcionalidades que servem para o meu workflow pessoal!
 
 ## Recursos implementados
 
@@ -24,7 +24,8 @@ Para o site que estou desenvolvendo agora, usei o Sonnet 5 para programar um ser
 ## Como testar
 
 ```bash
-gcc cerve.c -o cerve
+gcc src/cerve.c -o testing/cerve
+cd testing
 ./cerve
 ```
 
