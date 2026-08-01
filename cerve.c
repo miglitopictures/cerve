@@ -8,7 +8,6 @@
 
 #define CERVE_PORT 4040
 
-
 int send404(int client_fd){
     char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
     if(write(client_fd, response, strlen(response)) == -1){
@@ -17,17 +16,6 @@ int send404(int client_fd){
     };
     return 0;
 }
-
-/*
-1 - cria o socket
-2 - socket() - configura o socket
-3 - cria um endereco
-4 - bind(socket, endereco) - conecta o sockete ao endereco
-5 - listen() - prepara o socket para escutar pedidos numa fila
-6 - accept() - aceita o pedido que estiver na frente da fila
-7 - agora para ler o pedido e mandar uma resposta, é uma questao de ler o que esta no arquivo (client_fd) e escrever no arquivo (client_fd)
-8 - fechar conexoes
-*/
 
 int main(){
     // criando socket ipv4
@@ -216,21 +204,26 @@ int main(){
                     fclose(file);
                 }
 
-                char *extension = strrchr(full_path, '.') + 1;
                 char mime[32];
-                { // BUILD MIME
-                    if (strcmp(extension,"html") == 0){
-                        strcpy(mime, "text/html");
-                    } else if (strcmp(extension,"css") == 0){
-                        strcpy(mime, "text/css");
-                    } else if (strcmp(extension,"js") == 0){
-                        strcpy(mime, "application/javascript");
-                    } else if (strcmp(extension,"png") == 0){
-                        strcpy(mime, "image/png");
-                    } else if (strcmp(extension,"jpg") == 0){
-                        strcpy(mime, "image/jpg");
-                    } else {
+                // BUILD MIME
+                {
+                    char *extension = strrchr(full_path, '.');
+                    if (extension == NULL){
                         strcpy(mime, "application/octet-stream");
+                    } else { 
+                        if (strcmp(extension,".html") == 0){
+                            strcpy(mime, "text/html");
+                        } else if (strcmp(extension,".css") == 0){
+                            strcpy(mime, "text/css");
+                        } else if (strcmp(extension,".js") == 0){
+                            strcpy(mime, "application/javascript");
+                        } else if (strcmp(extension,".png") == 0){
+                            strcpy(mime, "image/png");
+                        } else if (strcmp(extension,".jpg") == 0){
+                            strcpy(mime, "image/jpg");
+                        } else {
+                            strcpy(mime, "application/octet-stream");
+                        }
                     }
                 }
 
@@ -254,7 +247,7 @@ int main(){
             exit(0);
 
         } else {
-            // PARENT PROCESS GETS NEXT //
+            // PARENT PROCESS GETS NEXT //index.html
             close(client_fd);
             waitpid(-1, NULL, WNOHANG);
         }
