@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -34,7 +35,7 @@ int sendFile(int client_fd, char *file_path) {
     if (file == NULL) {
         perror("failed to open file!");
         char *response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 7\r\n\r\nSorry!\n";
-        if(write(client_fd, response, strlen(response)) != 0){
+        if(write(client_fd, response, strlen(response)) == -1){
             perror("send file 404 write failed!");
             return 1;
         };
@@ -191,8 +192,8 @@ int main(int argc, char *argv[]){
     };
 
     
-
-    char server_root[MAX_PATH];
+    // recurso: 
+    char server_root[PATH_MAX];
     realpath(".", server_root);
 
 
@@ -285,7 +286,7 @@ int main(int argc, char *argv[]){
             }
 
             // resolve full path (absolute)
-            char resolved_path[MAX_PATH];
+            char resolved_path[PATH_MAX];
             if (realpath(full_path, resolved_path) == NULL) {
                 printf("failed to resolve desired path!\n");
                 if(send404(client_fd, redirect_on_404, not_found_page) != 0){
